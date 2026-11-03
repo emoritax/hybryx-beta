@@ -61,7 +61,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _start() async {
     // Future.wait corre ambas a la vez y espera a la más lenta.
-    await Future.wait([
+    // <void>: son de tipos distintos (TickerFuture y Future<Database>) y
+    // Dart no infiere solo el tipo común; como no usamos sus resultados,
+    // le decimos que es una lista de Future<void>.
+    await Future.wait<void>([
       _c.forward(), // forward() devuelve un Future que termina con la animación
       AppDatabase.instance.database, // abre (o migra) SQLite
     ]);
