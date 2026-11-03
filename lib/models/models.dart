@@ -86,12 +86,14 @@ class Routine {
 class RoutineItem {
   final int exerciseId;
   final String exerciseName; // viene de un JOIN con exercises
+  final String muscleGroup; // para el color de la carta en el mazo
   int targetSets; // series objetivo (todas tipo normal)
   int targetReps; // repeticiones objetivo por serie
 
   RoutineItem({
     required this.exerciseId,
     required this.exerciseName,
+    required this.muscleGroup,
     this.targetSets = 3,
     this.targetReps = 10,
   });
@@ -99,6 +101,7 @@ class RoutineItem {
   factory RoutineItem.fromMap(Map<String, Object?> m) => RoutineItem(
         exerciseId: m['exercise_id'] as int,
         exerciseName: m['exercise_name'] as String,
+        muscleGroup: m['muscle_group'] as String,
         targetSets: m['target_sets'] as int,
         targetReps: m['target_reps'] as int,
       );
@@ -195,4 +198,115 @@ class WorkoutSet {
         'reps': reps,
         'done': done ? 1 : 0,
       };
+}
+
+// ═════════════════════════ PROGRESO (datos vivos) ═════════════════════════
+
+/// Una serie hecha, aplanada para cálculos (viene de un JOIN de 4 tablas).
+class SetRecord {
+  final int workoutId;
+  final int exerciseId;
+  final String exerciseName;
+  final String muscleGroup;
+  final double weightKg;
+  final int reps;
+
+  const SetRecord({
+    required this.workoutId,
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.muscleGroup,
+    required this.weightKg,
+    required this.reps,
+  });
+
+  factory SetRecord.fromMap(Map<String, Object?> m) => SetRecord(
+        workoutId: m['workout_id'] as int,
+        exerciseId: m['exercise_id'] as int,
+        exerciseName: m['exercise_name'] as String,
+        muscleGroup: m['muscle_group'] as String,
+        weightKg: (m['weight_kg'] as num).toDouble(),
+        reps: m['reps'] as int,
+      );
+}
+
+/// La mejor marca de un ejercicio.
+class BestLift {
+  final int exerciseId;
+  final String exerciseName;
+  final String muscleGroup;
+  final double weightKg;
+  final int reps;
+  final double e1rm; // 1RM estimado (ver progress.dart)
+  final DateTime date;
+
+  const BestLift({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.muscleGroup,
+    required this.weightKg,
+    required this.reps,
+    required this.e1rm,
+    required this.date,
+  });
+}
+
+/// Todo lo que muestran el encabezado, el perfil y el resumen final.
+class Progress {
+  final int workouts; // entrenos terminados
+  final int doneSets;
+  final int prCount;
+  final int xp; // XP total acumulada
+  final int level;
+  final int xpIntoLevel; // XP dentro del nivel actual
+  final int xpForLevel; // XP que pide el nivel actual
+  final int weekStreak; // semanas seguidas entrenando (actual)
+  final int bestWeekStreak;
+  final List<bool> thisWeek; // L..D: ¿entrenó ese día?
+  final List<BestLift> bestLifts;
+
+  const Progress({
+    required this.workouts,
+    required this.doneSets,
+    required this.prCount,
+    required this.xp,
+    required this.level,
+    required this.xpIntoLevel,
+    required this.xpForLevel,
+    required this.weekStreak,
+    required this.bestWeekStreak,
+    required this.thisWeek,
+    required this.bestLifts,
+  });
+
+  /// 0.0–1.0 para la barra de XP.
+  double get levelFraction => xpIntoLevel / xpForLevel;
+  int get sessionsThisWeek => thisWeek.where((d) => d).length;
+}
+
+/// Fila del historial en el perfil.
+class WorkoutSummary {
+  final int id;
+  final String name;
+  final DateTime startedAt;
+  final DateTime finishedAt;
+  final int doneSets;
+
+  const WorkoutSummary({
+    required this.id,
+    required this.name,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.doneSets,
+  });
+
+  Duration get duration => finishedAt.difference(startedAt);
+
+  factory WorkoutSummary.fromMap(Map<String, Object?> m) => WorkoutSummary(
+        id: m['id'] as int,
+        name: m['name'] as String,
+        startedAt: DateTime.parse(m['started_at'] as String),
+        finishedAt: DateTime.parse(m['finished_at'] as String),
+        doneSets: (m['done_sets'] as int?) ?? 0,
+      );
 }

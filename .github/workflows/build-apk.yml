@@ -59,8 +59,16 @@ jobs:
             cp .ci/debug.keystore ~/.android/debug.keystore
           fi
 
-      # 6. Dependencias (sqflite, path).
+      # 6. Dependencias (sqflite, path, flutter_launcher_icons).
       - run: flutter pub get
+
+      # 6b. Nombre visible "HYBRYX" (flutter create pone "hybryx_beta") e
+      #     íconos de la app generados desde assets/icon.png en todas las
+      #     resoluciones que pide Android.
+      - name: App name and launcher icon
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="HYBRYX"/' android/app/src/main/AndroidManifest.xml
+          dart run flutter_launcher_icons
 
       # 7. Revisión estática: si hay un error de código, el build para aquí
       #    y el log dice exactamente qué línea falla.

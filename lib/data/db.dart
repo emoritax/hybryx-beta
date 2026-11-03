@@ -37,17 +37,34 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      // Versión del esquema. Si mañana cambias tablas, subes a 2 y
-      // escribes `onUpgrade` (la "migración", como Alembic).
-      version: 1,
+      // Versión del esquema. v1 = beta-2. v2 agrega la tabla `settings`.
+      // sqflite guarda el número dentro del .db y, al abrir, compara:
+      //   archivo no existe        -> onCreate (instalación nueva)
+      //   archivo con versión < 2  -> onUpgrade (ya tenías beta-2)
+      version: 2,
       // onConfigure corre ANTES que todo en cada apertura.
       // SQLite trae las foreign keys APAGADAS por defecto (!). Sin esta
       // línea, ON DELETE CASCADE no haría nada y quedarían filas huérfanas.
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-      // onCreate corre UNA vez: cuando el archivo .db no existía.
       onCreate: _onCreate,
+      // La MIGRACIÓN (tu Alembic): lleva un .db viejo a la versión nueva
+      // SIN borrar datos. Por esto, actualizar a beta-3 conserva tus
+      // entrenos. Cada `if` aplica un salto de versión, en orden.
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) await _createSettings(db);
+      },
     );
   }
+
+  /// Tabla clave/valor para preferencias (alias del usuario, etc.).
+  /// Clave/valor en vez de columnas: agregar una preferencia nueva no
+  /// requiere migración, solo una fila nueva.
+  static Future<void> _createSettings(DatabaseExecutor db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+          key   TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      ''');
 
   Future<void> _onCreate(Database db, int version) async {
     // Un Batch acumula muchas operaciones y las ejecuta juntas en una
@@ -144,5 +161,8 @@ class AppDatabase {
 
     // noResult: true = no necesitamos los ids devueltos; ahorra memoria.
     await batch.commit(noResult: true);
+
+    // Instalación nueva: también crea lo que agregaron las migraciones.
+    await _createSettings(db);
   }
 }

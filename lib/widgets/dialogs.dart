@@ -1,30 +1,28 @@
 // ─────────────────────────────────────────────────────────────────────
-// dialogs.dart — Diálogos reutilizables: pedir un texto, confirmar
-// una acción y crear un ejercicio personalizado.
+// dialogs.dart — Diálogos reutilizables: pedir texto, confirmar, crear
+// ejercicio personalizado y el control  [-] 3 [+].
 // ─────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart'; // para atrapar DatabaseException
+import 'package:sqflite/sqflite.dart'; // DatabaseException
 
 import '../data/repo.dart';
 import '../data/seed_exercises.dart';
 import '../models/models.dart';
+import '../theme/hx.dart';
+import '../theme/labels.dart';
 
-/// Pide un texto (ej. nombre de rutina). Devuelve null si se cancela.
-/// showDialog devuelve un Future que se completa con lo que se pase a
-/// Navigator.pop(context, valor) al cerrar el diálogo.
+/// Pide un texto. Devuelve null si se cancela.
 Future<String?> showTextPrompt(
   BuildContext context, {
   required String title,
   String initial = '',
-  String label = 'Name',
+  String label = 'Nombre',
 }) {
-  // Nota: este controller no se dispose()-a. Si lo liberáramos al cerrar,
-  // la animación de salida del diálogo aún lo usa y Flutter lanza error.
-  // No tiene listeners, así que el recolector de basura lo limpia solo.
+  // No se dispose()-a: la animación de salida aún lo usa al cerrar.
+  // Sin listeners, el recolector de basura lo limpia.
   final controller = TextEditingController(text: initial);
 
-  // Función local: valida y cierra. Evita repetir lógica en 2 lugares.
   void submit(BuildContext ctx) {
     final text = controller.text.trim();
     if (text.isNotEmpty) Navigator.pop(ctx, text);
@@ -32,63 +30,64 @@ Future<String?> showTextPrompt(
 
   return showDialog<String>(
     context: context,
-    // `ctx` es el contexto DEL diálogo; con él cerramos el diálogo,
-    // no la pantalla de atrás.
     builder: (ctx) => AlertDialog(
-      title: Text(title),
+      title: Text(title, style: Hx.disp(26)),
       content: TextField(
         controller: controller,
-        autofocus: true, // abre el teclado de una
+        autofocus: true,
         textCapitalization: TextCapitalization.sentences,
         decoration: InputDecoration(labelText: label),
-        onSubmitted: (_) => submit(ctx), // "Enter" del teclado = OK
+        onSubmitted: (_) => submit(ctx),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        FilledButton(onPressed: () => submit(ctx), child: const Text('OK')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: Hx.muted))),
+        FilledButton(onPressed: () => submit(ctx), child: const Text('Guardar')),
       ],
     ),
   );
 }
 
-/// Diálogo Sí/No. Devuelve true solo si el usuario confirma.
+/// Sí/No. true solo si confirma.
 Future<bool> confirm(
   BuildContext context, {
   required String title,
   String? message,
-  String confirmLabel = 'Delete',
+  String confirmLabel = 'Eliminar',
+  bool destructive = true,
 }) async {
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(title),
-      // `if` dentro de parámetros no se puede; usamos ternario con null.
-      content: message == null ? null : Text(message),
+      title: Text(title, style: Hx.disp(24)),
+      content: message == null
+          ? null
+          : Text(message, style: const TextStyle(color: Hx.muted)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
+            child: const Text('Cancelar', style: TextStyle(color: Hx.muted))),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmLabel)),
+          style: destructive
+              ? FilledButton.styleFrom(
+                  backgroundColor: Hx.danger, foregroundColor: Hx.bg)
+              : null,
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(confirmLabel),
+        ),
       ],
     ),
   );
-  // Si tocan fuera del diálogo, result es null -> lo tratamos como "no".
-  return result ?? false;
+  return result ?? false; // tocar afuera = no
 }
 
-/// Abre el diálogo de "nuevo ejercicio". Devuelve el Exercise creado.
+/// Diálogo de ejercicio personalizado. Devuelve el Exercise creado.
 Future<Exercise?> showAddExerciseDialog(BuildContext context) {
   return showDialog<Exercise>(
-    context: context,
-    builder: (_) => const _AddExerciseDialog(),
-  );
+      context: context, builder: (_) => const _AddExerciseDialog());
 }
 
-/// Stateful porque el diálogo tiene estado propio: músculo elegido,
-/// equipo elegido, mensaje de error y si está guardando.
 class _AddExerciseDialog extends StatefulWidget {
   const _AddExerciseDialog();
 
@@ -100,11 +99,9 @@ class _AddExerciseDialogState extends State<_AddExerciseDialog> {
   final _name = TextEditingController();
   String _muscle = muscleGroups.first;
   String _equipment = equipmentTypes.first;
-  String? _error; // texto rojo bajo el campo; null = sin error
-  bool _saving = false; // desactiva "Save" para evitar doble toque
+  String? _error;
+  bool _saving = false;
 
-  // Los controllers reservan recursos: hay que liberarlos al destruir
-  // el State. Regla: lo que creas en el State, lo limpias en dispose().
   @override
   void dispose() {
     _name.dispose();
@@ -114,24 +111,21 @@ class _AddExerciseDialogState extends State<_AddExerciseDialog> {
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Name is required');
+      setState(() => _error = 'Escribe un nombre');
       return;
     }
     setState(() => _saving = true);
     try {
       final created = await Repo.instance.addCustomExercise(
           name: name, muscleGroup: _muscle, equipment: _equipment);
-      // Tras un `await` la pantalla pudo cerrarse. `mounted` dice si este
-      // State sigue en pantalla; usar context sin chequear puede crashear.
       if (!mounted) return;
       Navigator.pop(context, created);
     } on DatabaseException catch (e) {
       setState(() {
         _saving = false;
-        // isUniqueConstraintError(): el UNIQUE de `name` saltó.
         _error = e.isUniqueConstraintError()
-            ? 'An exercise with that name already exists'
-            : 'Could not save the exercise';
+            ? 'Ya existe un ejercicio con ese nombre'
+            : 'No se pudo guardar';
       });
     }
   }
@@ -139,36 +133,35 @@ class _AddExerciseDialogState extends State<_AddExerciseDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New exercise'),
+      title: Text('Nuevo ejercicio', style: Hx.disp(26)),
       content: Column(
-        mainAxisSize: MainAxisSize.min, // altura justa, no toda la pantalla
+        mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _name,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
-                labelText: 'Name (English)', errorText: _error),
+                labelText: 'Nombre (en inglés)', errorText: _error),
           ),
-          const SizedBox(height: 12), // espacio vertical fijo
+          const SizedBox(height: 12),
+          // Guardamos la clave en inglés ('Chest') pero mostramos 'Pecho'.
           DropdownButtonFormField<String>(
             initialValue: _muscle,
-            decoration: const InputDecoration(labelText: 'Muscle group'),
-            // Convertimos cada String en una opción del dropdown.
+            decoration: const InputDecoration(labelText: 'Músculo'),
             items: [
               for (final m in muscleGroups)
-                DropdownMenuItem(value: m, child: Text(m)),
+                DropdownMenuItem(value: m, child: Text(muscleLabel(m))),
             ],
-            // `v!` = "sé que no es null" (siempre elegimos algo).
             onChanged: (v) => setState(() => _muscle = v!),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _equipment,
-            decoration: const InputDecoration(labelText: 'Equipment'),
+            decoration: const InputDecoration(labelText: 'Equipo'),
             items: [
               for (final e in equipmentTypes)
-                DropdownMenuItem(value: e, child: Text(e)),
+                DropdownMenuItem(value: e, child: Text(equipmentLabel(e))),
             ],
             onChanged: (v) => setState(() => _equipment = v!),
           ),
@@ -177,10 +170,64 @@ class _AddExerciseDialogState extends State<_AddExerciseDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        // onPressed: null => botón deshabilitado (gris).
+            child: const Text('Cancelar', style: TextStyle(color: Hx.muted))),
         FilledButton(
-            onPressed: _saving ? null : _save, child: const Text('Save')),
+            onPressed: _saving ? null : _save, child: const Text('Guardar')),
+      ],
+    );
+  }
+}
+
+/// Control  [-] 3 [+]. Stateless: el padre es dueño del número.
+class Stepper3 extends StatelessWidget {
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  const Stepper3({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(IconData icon, int? next) => IconButton.filledTonal(
+          style: IconButton.styleFrom(
+              backgroundColor: Hx.surface2, foregroundColor: Hx.text),
+          onPressed: next == null ? null : () => onChanged(next),
+          icon: Icon(icon, size: 18),
+        );
+
+    return Column(
+      children: [
+        Text(label.toUpperCase(), style: Hx.label()),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            btn(Icons.remove, value > min ? value - 1 : null),
+            // AnimatedSwitcher: el número nuevo entra con un fade+zoom.
+            SizedBox(
+              width: 48,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (c, a) =>
+                    ScaleTransition(scale: a, child: c),
+                child: Text('$value',
+                    key: ValueKey(value),
+                    textAlign: TextAlign.center,
+                    style: Hx.disp(30, color: Hx.lime)),
+              ),
+            ),
+            btn(Icons.add, value < max ? value + 1 : null),
+          ],
+        ),
       ],
     );
   }

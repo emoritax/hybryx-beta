@@ -1,29 +1,65 @@
-# pubspec.yaml = el "requirements.txt" de Flutter.
-# Define el nombre del paquete, la versión y las dependencias.
+# pubspec.yaml = el "requirements.txt" de Flutter: nombre, versión,
+# dependencias y ARCHIVOS que se empaquetan en la app (assets, fuentes).
 
 name: hybryx_beta
 description: "HYBRYX beta — gym tracker local para Android."
-publish_to: 'none' # no es una librería para pub.dev, es una app
+publish_to: 'none'
 
-# versión visible (0.1.0) + número de build (+1) que usa Google Play
-version: 0.1.0+1
+# 0.2.0 = versión visible. El número tras + (versionCode) lo pone el CI
+# con --build-number para que siempre suba.
+version: 0.2.0+1
 
 environment:
-  # Dart 3.9 viene con Flutter 3.35. Pedimos al menos esa versión porque
-  # usamos records/patterns (Dart 3) y `initialValue` en los dropdowns.
   sdk: ^3.9.0
 
 dependencies:
   flutter:
     sdk: flutter
-  # sqflite: SQLite para Flutter (Android/iOS). Es nuestra "PostgreSQL local".
-  sqflite: ^2.4.1
-  # path: une rutas de archivos de forma segura (join) en cualquier SO.
-  path: ^1.9.0
+  sqflite: ^2.4.1 # SQLite local
+  path: ^1.9.0 # unir rutas de archivos
 
 dev_dependencies:
-  # reglas de estilo recomendadas por Flutter (avisos en el editor)
   flutter_lints: ^5.0.0
+  # Genera los íconos de Android (todas las resoluciones) desde un PNG.
+  # Es dev_dependency porque solo corre al construir, no dentro de la app.
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
-  uses-material-design: true # incluye la fuente de íconos de Material
+  uses-material-design: true
+
+  # Archivos que viajan DENTRO del APK. Sin declararlos aquí, Flutter
+  # no los incluye y Image.asset() fallaría.
+  assets:
+    - assets/logo.png
+
+  # Fuentes empaquetadas (no se descargan: la app funciona sin internet).
+  # `family` es el nombre que usamos en el código; cada `weight` apunta al
+  # archivo de ese grosor, así FontWeight.w800 elige ExtraBold solo.
+  fonts:
+    - family: BarlowCondensed # títulos y números (estilo deportivo)
+      fonts:
+        - asset: assets/fonts/BarlowCondensed-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BarlowCondensed-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/BarlowCondensed-ExtraBold.ttf
+          weight: 800
+    - family: DMSans # texto normal
+      fonts:
+        - asset: assets/fonts/DMSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/DMSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-Bold.ttf
+          weight: 700
+
+# Configuración de flutter_launcher_icons (se ejecuta en el CI).
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon.png
+  # Android 8+ usa "íconos adaptativos": fondo + primer plano por separado,
+  # y cada fabricante recorta la forma (círculo, squircle...). El primer
+  # plano lleva margen para que el recorte no corte el logo.
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/icon_foreground.png
