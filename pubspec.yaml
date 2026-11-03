@@ -1,0 +1,29 @@
+# pubspec.yaml = el "requirements.txt" de Flutter.
+# Define el nombre del paquete, la versión y las dependencias.
+
+name: hybryx_beta
+description: "HYBRYX beta — gym tracker local para Android."
+publish_to: 'none' # no es una librería para pub.dev, es una app
+
+# versión visible (0.1.0) + número de build (+1) que usa Google Play
+version: 0.1.0+1
+
+environment:
+  # Dart 3.9 viene con Flutter 3.35. Pedimos al menos esa versión porque
+  # usamos records/patterns (Dart 3) y `initialValue` en los dropdowns.
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # sqflite: SQLite para Flutter (Android/iOS). Es nuestra "PostgreSQL local".
+  sqflite: ^2.4.1
+  # path: une rutas de archivos de forma segura (join) en cualquier SO.
+  path: ^1.9.0
+
+dev_dependencies:
+  # reglas de estilo recomendadas por Flutter (avisos en el editor)
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true # incluye la fuente de íconos de Material

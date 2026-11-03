@@ -1,0 +1,86 @@
+# ─────────────────────────────────────────────────────────────────────
+# build-apk.yml — GitHub Actions compila el APK en un servidor de GitHub
+# cada vez que se hace push a main. Así no necesitas Flutter instalado.
+#
+# Resultado: un "Release" en el repo con el .apk listo para descargar
+# desde el celular (pestaña Releases), más un artifact en la ejecución.
+# ─────────────────────────────────────────────────────────────────────
+
+name: Build APK
+
+on:
+  push:
+    branches: [main] # cada push a main dispara un build
+  workflow_dispatch: # botón "Run workflow" para correrlo a mano
+
+# El token automático de Actions necesita escribir para crear el Release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # máquina Linux limpia que GitHub presta
+    steps:
+      # 1. Descarga el código del repo en la máquina.
+      - uses: actions/checkout@v4
+
+      # 2. Java 17: Gradle (el que compila Android) lo necesita.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 3. Instala Flutter estable (con caché para que la próxima sea rápida).
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 4. El repo solo trae lib/ y pubspec.yaml. `flutter create .` genera
+      #    la carpeta android/ que falta SIN tocar archivos que ya existen.
+      #    Luego borramos el test de ejemplo (busca una clase MyApp).
+      - name: Generate Android platform files
+        run: |
+          flutter create --org com.hybryx --platforms android --project-name hybryx_beta .
+          rm -f test/widget_test.dart
+
+      # 5. Firma FIJA. Cada máquina de GitHub es nueva y crearía una clave
+      #    distinta en cada build -> Android rechazaría instalar la versión
+      #    nueva encima de la vieja. Restauramos siempre la misma clave
+      #    (guardada como secreto) donde Gradle la busca por defecto.
+      - name: Restore signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          elif [ -f .ci/debug.keystore ]; then
+            cp .ci/debug.keystore ~/.android/debug.keystore
+          fi
+
+      # 6. Dependencias (sqflite, path).
+      - run: flutter pub get
+
+      # 7. Revisión estática: si hay un error de código, el build para aquí
+      #    y el log dice exactamente qué línea falla.
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # 8. Compila. --build-number usa el contador de ejecuciones: el
+      #    versionCode sube solo en cada build, requisito de Android para
+      #    aceptar una actualización.
+      - run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      # 9. Guarda el APK como artifact de la ejecución (dura 90 días).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hybryx-beta-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      # 10. Publica un Release (pre-release) con el APK adjunto.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta-${{ github.run_number }}
+          name: HYBRYX Beta build ${{ github.run_number }}
+          prerelease: true
+          files: build/app/outputs/flutter-apk/app-release.apk
