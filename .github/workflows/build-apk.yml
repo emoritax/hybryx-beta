@@ -70,6 +70,46 @@ jobs:
           sed -i 's/android:label="[^"]*"/android:label="HYBRYX"/' android/app/src/main/AndroidManifest.xml
           dart run flutter_launcher_icons
 
+      # 6c. FIRMA FIJA, configurada directo en Gradle. Copiar la clave a
+      #     ~/.android (paso 5) NO bastaba: Gradle en el runner la buscaba
+      #     en otro lado y generaba una nueva en cada build. Aquí le decimos
+      #     explícitamente qué archivo usar para la config "debug", que es
+      #     la que Flutter usa para firmar el release de la plantilla.
+      #     Un segundo bloque android { } se suma al existente (Gradle
+      #     permite configurar la misma extensión varias veces).
+      - name: Pin signing key in Gradle
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            cat >> android/app/build.gradle.kts <<'EOF'
+
+          android {
+              signingConfigs {
+                  getByName("debug") {
+                      storeFile = file("../../.ci/debug.keystore")
+                      storePassword = "android"
+                      keyAlias = "androiddebugkey"
+                      keyPassword = "android"
+                  }
+              }
+          }
+          EOF
+          else
+            cat >> android/app/build.gradle <<'EOF'
+
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file("../../.ci/debug.keystore")
+                      storePassword "android"
+                      keyAlias "androiddebugkey"
+                      keyPassword "android"
+                  }
+              }
+          }
+          EOF
+          fi
+          tail -15 android/app/build.gradle*
+
       # 7. Revisión estática: si hay un error de código, el build para aquí
       #    y el log dice exactamente qué línea falla.
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
